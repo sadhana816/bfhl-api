@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BFHL — Node Hierarchy Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --card: #16161f;
+    --border: #2a2a3a;
+    --accent: #7c6af7;
+    --accent2: #f7916a;
+    --accent3: #5ef5c8;
+    --text: #e8e8f0;
+    --muted: #888;
+    --error: #f76a7c;
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated bg grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,106,247,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,247,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow {
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow-1 { top: -200px; left: -100px; background: rgba(124,106,247,0.12); }
+  .glow-2 { bottom: -200px; right: -100px; background: rgba(94,245,200,0.07); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(124,106,247,0.4);
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Input panel */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .panel-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 12px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 130px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 14px 16px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: #444; }
+
+  .hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* API URL field */
+  .url-wrap { flex: 1; min-width: 200px; }
+  .url-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .url-input:focus { border-color: var(--accent); color: var(--text); }
+
+  .btn {
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #9585f9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,106,247,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    padding: 10px 16px;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(247,106,124,0.08);
+    border: 1px solid rgba(247,106,124,0.3);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--error);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  /* Results */
+  #results { animation: fadeUp 0.4s ease both; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .results-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(124,106,247,0.06), transparent);
+    pointer-events: none;
+  }
+  .stat-val {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .stat-card.green .stat-val { color: var(--accent3); }
+  .stat-card.orange .stat-val { color: var(--accent2); }
+
+  /* Sections */
+  .section { margin-bottom: 20px; }
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Hierarchy cards */
+  .hierarchy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+
+  .h-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    transition: border-color 0.2s;
+  }
+  .h-card:hover { border-color: var(--accent); }
+  .h-card.cyclic { border-left: 3px solid var(--error); }
+  .h-card:not(.cyclic) { border-left: 3px solid var(--accent3); }
+
+  .h-root {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text);
+  }
+  .h-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .tag-cycle { background: rgba(247,106,124,0.12); color: var(--error); }
+  .tag-depth { background: rgba(94,245,200,0.1); color: var(--accent3); }
+
+  .tree-view {
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    line-height: 1.8;
+  }
+  .tree-node { color: var(--accent); }
+  .tree-indent { color: var(--border); }
+
+  /* Tag lists */
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .pill.invalid { border-color: rgba(247,106,124,0.3); color: var(--error); }
+  .pill.dup { border-color: rgba(247,145,106,0.3); color: var(--accent2); }
+  .empty-label { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+  /* Raw JSON */
+  .json-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: #aaa;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  @keyframes fadeDown { from { opacity:0; transform: translateY(-20px); } to { opacity:1; transform: none; } }
+  @keyframes fadeUp   { from { opacity:0; transform: translateY(16px);  } to { opacity:1; transform: none; } }
+  @keyframes spin     { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<div class="container">
+  <header>
+    <div class="badge">SRM Full Stack Challenge</div>
+    <h1>Node Hierarchy<br>Explorer</h1>
+    <p class="subtitle">POST /bfhl — tree builder &amp; cycle detector</p>
+  </header>
+
+  <div class="panel">
+    <div class="panel-label">Node Edges Input</div>
+    <textarea id="inputData" placeholder='Enter edges comma-separated or one per line:
+A->B, A->C, B->D, C->E, E->F
+X->Y, Y->Z, Z->X
+P->Q, Q->R
+hello, 1->2, A->'></textarea>
+    <p class="hint">Format: PARENT->CHILD &nbsp;|&nbsp; Supports comma or newline separated lists</p>
+    <div class="row">
+      <div class="url-wrap">
+        <input class="url-input" id="apiUrl" type="text" value="http://localhost:3000" placeholder="API base URL"/>
+      </div>
+      <button class="btn btn-ghost" onclick="loadExample()">Load Example</button>
+      <button class="btn btn-primary" id="submitBtn" onclick="submit()">Submit →</button>
+    </div>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none"></div>
+  <div id="results" style="display:none"></div>
+</div>
+
+<script>
+function loadExample() {
+  document.getElementById('inputData').value =
+    'A->B, A->C, B->D, C->E, E->F, X->Y, Y->Z, Z->X, P->Q, Q->R, G->H, G->H, G->I, hello, 1->2, A->';
+}
+
+async function submit() {
+  const raw = document.getElementById('inputData').value.trim();
+  const apiUrl = document.getElementById('apiUrl').value.trim().replace(/\/$/, '');
+  const btn = document.getElementById('submitBtn');
+  const errorBox = document.getElementById('errorBox');
+  const resultsDiv = document.getElementById('results');
+
+  if (!raw) { showError('Please enter some node data.'); return; }
+
+  // Parse input — split on comma or newline
+  const data = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+  errorBox.style.display = 'none';
+  resultsDiv.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Processing...';
+
+  try {
+    const res = await fetch(`${apiUrl}/bfhl`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const json = await res.json();
+    renderResults(json);
+  } catch (e) {
+    showError(`API call failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Submit →';
+  }
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = '⚠ ' + msg;
+  box.style.display = 'block';
+}
+
+function renderResults(d) {
+  const el = document.getElementById('results');
+  el.style.display = 'block';
+
+  const { hierarchies = [], invalid_entries = [], duplicate_edges = [], summary = {} } = d;
+  const trees = hierarchies.filter(h => !h.has_cycle);
+  const cycles = hierarchies.filter(h => h.has_cycle);
+
+  el.innerHTML = `
+    <div class="results-header">
+      <div class="results-title">✦ Response</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">
+        user: ${d.user_id || '—'}
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-grid">
+      <div class="stat-card green">
+        <div class="stat-val">${summary.total_trees ?? 0}</div>
+        <div class="stat-label">Valid Trees</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-val">${summary.total_cycles ?? 0}</div>
+        <div class="stat-label">Cycles</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="font-size:1.4rem">${summary.largest_tree_root || '—'}</div>
+        <div class="stat-label">Deepest Root</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">${invalid_entries.length}</div>
+        <div class="stat-label">Invalid</div>
+      </div>
+    </div>
+
+    <!-- Hierarchies -->
+    <div class="section">
+      <div class="section-title">Hierarchies (${hierarchies.length})</div>
+      <div class="hierarchy-grid">
+        ${hierarchies.map(h => renderHCard(h)).join('')}
+      </div>
+    </div>
+
+    <!-- Invalid -->
+    <div class="section">
+      <div class="section-title">Invalid Entries</div>
+      <div class="tag-list">
+        ${invalid_entries.length
+          ? invalid_entries.map(e => `<span class="pill invalid">${e || '(empty)'}</span>`).join('')
+          : '<span class="empty-label">none</span>'}
+      </div>
+    </div>
+
+    <!-- Duplicates -->
+    <div class="section">
+      <div class="section-title">Duplicate Edges</div>
+      <div class="tag-list">
+        ${duplicate_edges.length
+          ? duplicate_edges.map(e => `<span class="pill dup">${e}</span>`).join('')
+          : '<span class="empty-label">none</span>'}
+      </div>
+    </div>
+
+    <!-- Raw JSON toggle -->
+    <div class="section">
+      <div class="section-title" style="cursor:pointer" onclick="toggleRaw()">Raw JSON ▾</div>
+      <pre class="json-block" id="rawJson" style="display:none">${JSON.stringify(d, null, 2)}</pre>
+    </div>
+  `;
+}
+
+function toggleRaw() {
+  const el = document.getElementById('rawJson');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderHCard(h) {
+  const cyclic = !!h.has_cycle;
+  return `
+    <div class="h-card ${cyclic ? 'cyclic' : ''}">
+      <div class="h-root">${h.root}</div>
+      <div class="h-meta">
+        ${cyclic ? '<span class="tag tag-cycle">cycle</span>' : `<span class="tag tag-depth">depth ${h.depth}</span>`}
+      </div>
+      ${!cyclic ? `<div class="tree-view">${renderTreeText(h.tree, '', true)}</div>` : '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--error);margin-top:10px">⟳ Cyclic group — no tree</div>'}
+    </div>
+  `;
+}
+
+function renderTreeText(obj, prefix, isRoot) {
+  if (!obj || typeof obj !== 'object') return '';
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return '';
+  let out = '';
+  keys.forEach((key, i) => {
+    const last = i === keys.length - 1;
+    const branch = last ? '└─ ' : '├─ ';
+    const childPrefix = last ? '   ' : '│  ';
+    out += `<span class="tree-indent">${prefix}${branch}</span><span class="tree-node">${key}</span>\n`;
+    out += renderTreeText(obj[key], prefix + childPrefix, false);
+  });
+  return out;
+}
+</script>
+</body>
+</html>
